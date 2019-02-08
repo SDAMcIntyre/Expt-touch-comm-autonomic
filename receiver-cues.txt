@@ -1,0 +1,6 @@
+gratitude	They are trying to communicate GRATITUDE.
+love	They are trying to express LOVE.
+sadness	They are trying to express SADNESS.
+happiness	They are trying to express HAPPINESS.
+attention	They are trying to get your ATTENTION.
+calming	They are trying to be CALMING.

@@ -1,0 +1,6 @@
+gratitude	0.836
+love	0.575
+sadness	0.836
+happiness	0.836
+attention	0.993
+calming	0.601
