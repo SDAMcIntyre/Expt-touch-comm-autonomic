@@ -77,6 +77,38 @@ class DisplayInterface:
         self.timerDisplay.autoDraw = False
         self.win.flip()
 
+class VASInterface(DisplayInterface):
+    def __init__(self,fullscr,screen,size,message,question,minLabel,maxLabel):
+        DisplayInterface.__init__(self,fullscr,screen,size,message)
+        
+        self.mouse = event.Mouse(True,None,self.win)
+        
+        barMarker = visual.TextStim(self.win, text='|', units='norm')
+        
+        self.VAS = visual.RatingScale(self.win, low=-10, high=10, precision=10, 
+            showValue=False, marker=barMarker, scale = question,
+            tickHeight=1, stretch=1.5, size = 0.8, 
+            labels=[minLabel, maxLabel],
+            tickMarks=[-10,10], mouseOnly = True, pos=(0,0))
+    
+    def getVASrating(self,clock):
+        event.clearEvents()
+        self.VAS.reset()
+        resetTime = clock.getTime()
+        aborted = False
+        while self.VAS.noResponse and not aborted:
+            self.VAS.draw()
+            self.win.flip()
+            for (key,t) in event.getKeys(['escape'], timeStamped=clock):
+                response = -99
+                rTime = t
+                aborted = True
+        if not aborted:
+            response = self.VAS.getRating()
+            rTime = self.VAS.getRT() + resetTime
+        self.win.flip()
+        return(response,rTime)
+
 class ButtonInterface(DisplayInterface):
     def __init__(self,fullscr,screen,size,message,nCol,nRow,buttonLabels):
         DisplayInterface.__init__(self,fullscr,screen,size,message)
@@ -292,16 +324,20 @@ def present_stimulus(stimInfo,exptInfo,displayText,receiver,toucher,saveFiles,ex
         # start of the stimulus, audio 'go' signal
         if isiCountdown.getTime() < 0:
             toucher.hideTimerDisplay()
+            stimStartTime = None
             if triggerOnNeeded:
                 sync.sendSignal(stimInfo['SignalNo'])
                 stimStartTime = exptClock.getTime()
                 saveFiles.logEvent(stimStartTime, 'port signal sent: {}' .format(stimInfo['SignalNo']))
                 triggerOnNeeded = False
             if startLogNeeded:
+                if stimStartTime == None:
+                    stimStartTime = exptClock.getTime()
                 saveFiles.logEvent(stimStartTime,'start touching')
                 startLogNeeded = False
             # end of the stimulus, audio 'stop' signal
             if isiCountdown.getTime() < -10:
+                stimStopTime = None
                 if triggerOffNeeded:
                     sync.sendSignal(sync.endStim)
                     stimStopTime = exptClock.getTime()
@@ -309,6 +345,8 @@ def present_stimulus(stimInfo,exptInfo,displayText,receiver,toucher,saveFiles,ex
                     sync.sendSignal(sync.reset)
                     triggerOffNeeded = False
                 if stopLogNeeded:
+                    if stimStopTime == None:
+                        stimStopTime = exptClock.getTime()
                     isiCountdown.reset(exptInfo['03. Inter-stimulus interval (sec)'])
                     saveFiles.logEvent(stimStopTime,'stop touching')
                     stopLogNeeded = False
@@ -317,7 +355,7 @@ def present_stimulus(stimInfo,exptInfo,displayText,receiver,toucher,saveFiles,ex
             toucher.updateTimerDisplay(isiCountdown.getTime())
     
 
-def get_response(stimLabels,receiverCueText,stimInfo,displayText,receiver,toucher,saveFiles,exptClock):
+def get_button_response(stimLabels,receiverCueText,stimInfo,displayText,receiver,toucher,saveFiles,exptClock):
     # wait for participant
     toucher.updateMessage(displayText['waitMessage'])
     
@@ -344,6 +382,21 @@ def get_response(stimLabels,receiverCueText,stimInfo,displayText,receiver,touche
     # stop drawing buttons for receiver
     receiver.hideButtons()
     return(response)
+
+def get_vas_response(toucher,receiver,displayText,exptClock,saveFiles):
+    # wait for participant
+    toucher.updateMessage(displayText['waitMessage'])
+    
+    # show VAS to participant and get rating
+    receiver.updateMessage('') ## hide message
+    (rating,rTime) = receiver.getVASrating(exptClock)
+    if rating == -99:
+        saveFiles.logAbort(rTime)
+        core.quit()
+    saveFiles.logEvent(rTime,'Pleasantness rating (-10","10) = {}' .format(rating))
+    
+    return(rating)
+
 
 if __name__ == "__main__":
     # demo of the button screens and getting input from mouse and then keyboard

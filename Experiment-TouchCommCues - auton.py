@@ -8,15 +8,15 @@ from touchcomm import *
 
 exptInfo = {'00. Experiment name':'touch-comm-auton',
             '01. Participant Code':'test',
-            '02. Number of repeats':5,
+            '02. Number of presentations per touch':5,
             '03. Inter-stimulus interval (sec)':50,
-            '04. Require response on (n) bonus trials':5,
+            '04. Require response on (n) bonus trials per touch':1,
             '05. Participant screen':0,#1,
             '06. Participant screen resolution':'800,600', #'1920, 1200',
             '07. Experimenter screen':0,
             '08. Experimenter screen resolution':'400,300', #'1280,720',
             '09. Play audio cue for video sync':True,
-            '10. Send signal for biopac sync':('none','serial','parallel'),
+            '10. Send signal for biopac sync':'serial', #('none','serial','parallel'),
             '11. Port address':'COM5', #'0x3FF8',
             '12. Folder for saving data':'data'}
 
@@ -59,15 +59,17 @@ for stim in stimLabels:
                     'cueSound':'./sounds/{} - short.wav' .format(stim),
                     'cueSoundDuration':float(soundDurations[stim]),
                     'SignalNo':stimLabels.index(stim)+1})
-trials = data.TrialHandler(stimList, exptInfo['02. Number of repeats'])
+trials = data.TrialHandler(stimList, exptInfo['02. Number of presentations per touch'])
 
+bonusStimList = copy.deepcopy(stimList)
+bonusTrials = data.TrialHandler(bonusStimList, exptInfo['04. Require response on (n) bonus trials per touch'])
 # ----
 
 # -- MAKE FOLDER/FILES TO SAVE DATA --
 
 saveFiles = DataFileCollection(foldername = exptInfo['12. Folder for saving data'],
                 filename = exptInfo['00. Experiment name'] + '_' + exptInfo['14. Date and time'] +'_P' + exptInfo['01. Participant Code'],
-                headers = ['trial','cued','response','correct'],
+                headers = ['trial','cued','response'],
                 dlgInput = exptInfo)
 
 # ----
@@ -79,12 +81,13 @@ toucher = DisplayInterface(False,
                         [int(i) for i in exptInfo['08. Experimenter screen resolution'].split(',')], ## convert text input to numbers
                         displayText['startMessage'])
 
-receiver = ButtonInterface(False,
-                            exptInfo['05. Participant screen'],
-                            [int(i) for i in exptInfo['06. Participant screen resolution'].split(',')],
-                            displayText['waitMessage'],
-                            2,3,
-                            [receiverCueText[i] for i in stimLabels])
+receiver = VASInterface(fullscr = True, 
+                        screen = exptInfo['05. Participant screen'], 
+                        size = [int(i) for i in exptInfo['06. Participant screen resolution'].split(',')],
+                        message = displayText['waitMessage'],
+                        question = 'How pleasant was the last stimulus on your skin?',
+                        minLabel = 'unpleasant',
+                        maxLabel = 'pleasant')
 
 # -----
 
@@ -134,46 +137,39 @@ for (key,keyTime) in event.waitKeys(keyList=['space','escape'], timeStamped=expt
 # signal the start of the experiment
 sync.sendSyncPulse()
 
-totalTrials = trials.nTotal + exptInfo['04. Require response on (n) bonus trials']
+totalTrials = trials.nTotal + bonusTrials.nTotal
 nTrialsComplete = 0
 
 # start the main experiment loop
-for thisTrial in trials:
+for thisTrialN in range(totalTrials):
     
     event.clearEvents()
     
-    
     # bonus trial
-    if trials.thisN % (trials.nTotal/exptInfo['04. Require response on (n) bonus trials']) == 0:
+    if exptInfo['04. Require response on (n) bonus trials per touch'] > 0 and \
+        thisTrialN % ((trials.nTotal+bonusTrials.nTotal)/bonusTrials.nTotal) == 0:
         
-        randomStimTrial = copy.deepcopy(random.sample(stimList,1)[0])
-        randomStimTrial['SignalNo'] = sync.bonusStim
+        thisTrial = next(bonusTrials)
+        thisTrial['SignalNo'] = sync.bonusStim
         
         if nTrialsComplete == 0: isiCountdown.reset(min(5,exptInfo['03. Inter-stimulus interval (sec)']))
-        present_stimulus(randomStimTrial,exptInfo,displayText,receiver,toucher,saveFiles,exptClock,isiCountdown,goStopSound,sync)
+        present_stimulus(thisTrial,exptInfo,displayText,receiver,toucher,saveFiles,exptClock,isiCountdown,goStopSound,sync)
         
-        response = get_response(stimLabels,receiverCueText,randomStimTrial,displayText,receiver,toucher,saveFiles,exptClock)
-        
-        nTrialsComplete +=1
-        
-        saveFiles.writeTrialData([nTrialsComplete,
-                        randomStimTrial['stim'],
-                        response,
-                        int(randomStimTrial['stim']==response)])
-        
-        saveFiles.logEvent(exptClock.getTime(),'{} of {} complete' .format(nTrialsComplete, totalTrials))
+        response = get_vas_response(toucher,receiver,displayText,exptClock,saveFiles)
     
     # regular trial
-    if nTrialsComplete == 0: isiCountdown.reset(10)
-    present_stimulus(thisTrial,exptInfo,displayText,receiver,toucher,saveFiles,exptClock,isiCountdown,goStopSound,sync)
+    else:
+        thisTrial = next(trials)
+        
+        if nTrialsComplete == 0: isiCountdown.reset(10)
+        present_stimulus(thisTrial,exptInfo,displayText,receiver,toucher,saveFiles,exptClock,isiCountdown,goStopSound,sync)
+        
+        response = 'none'
     
     nTrialsComplete +=1
-    response = 'none'
-    
     saveFiles.writeTrialData([nTrialsComplete,
                             thisTrial['stim'],
-                            response,
-                            int(thisTrial['stim']==response)])
+                            response])
     
     saveFiles.logEvent(exptClock.getTime(),'{} of {} complete' .format(nTrialsComplete, totalTrials))
 
