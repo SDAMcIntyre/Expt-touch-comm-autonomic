@@ -8,14 +8,14 @@ from touchcomm import *
 
 exptInfo = {'00. Experiment name':'touch-comm-auton',
             '01. Participant Code':'test',
-            '02. Number of presentations per touch':5,
-            '03. Inter-stimulus interval (sec)':50,
-            '04. Require response on (n) bonus trials per touch':1,
+            '02. Number of presentations per touch':7,
+            '03. Inter-stimulus interval (sec)':30,
+            '04. Require response on (n) bonus trials per touch':3,
             '05. Participant screen':0,#1,
             '06. Participant screen resolution':'800,600', #'1920, 1200',
             '07. Experimenter screen':0,
             '08. Experimenter screen resolution':'400,300', #'1280,720',
-            '09. Play audio cue for video sync':True,
+            '09. Play audio cue for video sync':False,
             '10. Send signal for biopac sync':'serial', #('none','serial','parallel'),
             '11. Port address':'COM5', #'0x3FF8',
             '12. Folder for saving data':'data'}
@@ -140,14 +140,19 @@ sync.sendSyncPulse()
 totalTrials = trials.nTotal + bonusTrials.nTotal
 nTrialsComplete = 0
 
+oneSetTrials = ['regular']*exptInfo['02. Number of presentations per touch'] + \
+                ['bonus']*exptInfo['04. Require response on (n) bonus trials per touch']
+
 # start the main experiment loop
 for thisTrialN in range(totalTrials):
     
     event.clearEvents()
+    numberInSet = thisTrialN % len(oneSetTrials)
+    if numberInSet == 0:
+        random.shuffle(oneSetTrials)
     
     # bonus trial
-    if exptInfo['04. Require response on (n) bonus trials per touch'] > 0 and \
-        thisTrialN % ((trials.nTotal+bonusTrials.nTotal)/bonusTrials.nTotal) == 0:
+    if oneSetTrials[numberInSet] == 'bonus':
         
         thisTrial = next(bonusTrials)
         thisTrial['SignalNo'] = sync.bonusStim
