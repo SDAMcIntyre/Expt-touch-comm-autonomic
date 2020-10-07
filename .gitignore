@@ -32,3 +32,9 @@ Icon?
 *.orig
 old
 Thumbs.db
+
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+analysis/Data/
